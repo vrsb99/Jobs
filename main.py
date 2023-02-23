@@ -13,64 +13,19 @@ import regex as re
 """
 
 
-driver = webdriver.Firefox()
+
 SEARCHES = ['Software Engineering Internship', 'Data Engineering Internship']
 
 def main():
-        
+    options = webdriver.FirefoxOptions()
+    
+    driver = webdriver.Firefox(options=options)
     driver.implicitly_wait(10)
     all_companies = []
-    # all_companies = glass_door(driver, all_companies, SEARCHES)
-    all_companies = linked_in(driver, all_companies, SEARCHES)
+    all_companies = glass_door(driver, all_companies, SEARCHES)
     get_companies(all_companies)
             
     driver.quit()
-
-def linked_in(driver, all_companies: list = [], searches: list= []):
-    driver.get("https://www.linkedin.com/home")
-    driver.find_element(By.ID, "session_key").send_keys(constants.LINKED_IN_EMAIL)
-    driver.find_element(By.ID, "session_password").send_keys(constants.LINKED_IN_PASSWORD)
-    driver.find_element(By.XPATH, "//button[@class='sign-in-form__submit-button']").click()
-    
-    for search in searches:
-        
-        search_field =  driver.find_element(By.XPATH, "//input[@class='search-global-typeahead__input']")
-        search_field.clear()
-        search_field.send_keys(search)
-        ActionChains(driver).send_keys(Keys.ENTER).perform()
-        driver.find_element(By.XPATH, "//button[contains(., 'Jobs')]").click()
-        
-        find_pages = driver.find_elements(By.XPATH, "//button[starts-with(@aria-label, 'Page')]")
-        total_pages = 0
-        for page in find_pages:
-            total_pages = max(total_pages, int(page.text))  
-          
-            
-        try:    
-            
-            for current_page in range(1, total_pages+1):
-                find_companies = driver.find_elements(By.XPATH, "//li[starts-with(@class, 'ember-view')]")
-                for company in find_companies:
-                    driver.execute_script("arguments[0].scrollIntoView();", company)
-                    company_info = company.text.splitlines()
-                    try:
-                        if company_info[1] not in [c.name for c in all_companies]:
-                                all_companies.append(Company(company_info[1], company_info[0]))
-                        else:
-                            all_companies[[c.name for c in all_companies].index(company_info[1])].add_role(company_info[0])
-                    except IndexError:
-                        pass
-        except Exception:
-            pass
-                
-        if current_page != total_pages:
-            driver.find_element(By.XPATH, f"//button[starts-with(@aria-label, 'Page {current_page+1}')]").click()
-            time.sleep(3)
-        
-        print(f"Page {current_page} of {total_pages}")
-    
-    return all_companies
-        
     
 
 def glass_door(driver, all_companies: list = [], searches: list = []):
