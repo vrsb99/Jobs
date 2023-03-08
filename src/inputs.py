@@ -11,7 +11,7 @@ def jobs_to_get() -> int:
         except ValueError:
             print("Please enter a valid number")
 
-    return (num,)
+    return num
 
 
 def job_titles_to_get(num: int) -> list:
