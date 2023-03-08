@@ -18,11 +18,20 @@ JOB_TITLES = [
 ]
 URL = "https://jsearch.p.rapidapi.com/search"
 RAPID_API_KEY = os.getenv("RAPID_API_KEY")
-PATH = "../jobs.csv"
+PATH = "jobs.csv"
 
 
 def main():
-
+    """Change the value of DEBUG to True to use the default values for job titles and location
+    1. Get the number of jobs to get
+    2. Get the job titles to get
+    3. Get the location to get jobs from
+    4. Get the jobs from RapidAPI's JSearch API
+    5. Store the jobs in a csv file after removing duplicates and expired jobs
+    6. Store the jobs in a list of Company objects
+    8. Print the companies
+    """
+    # 1, 2, 3
     if not DEBUG:
         num = jobs_to_get()
         titles = job_titles_to_get(num)
@@ -31,7 +40,10 @@ def main():
         titles = JOB_TITLES
         location = "Singapore"
 
+    # 4
     data = get_jobs(titles, location) if USE_API else []
+
+    # 5
     df = pd.DataFrame(
         data,
         columns=["Employer", "Job Title", "Publisher", "Apply Link", "Expiry Date"],
@@ -51,11 +63,23 @@ def main():
         ].reset_index(drop=True)
 
     df.to_csv(PATH, index=False)
+
+    # 6
     all_companies = store_jobs(df.to_dict("records"))
+    # 7
     get_companies(all_companies)
 
 
 def get_jobs(titles: list, location: str) -> list:
+    """Receives the jobs in json format from RapidAPI's JSearch API
+
+    Args:
+        titles (list): job titles to search for
+        location (str): location to search for jobs
+
+    Returns:
+        list: list of jobs in a dictionary format
+    """
 
     data = []
     headers = {
@@ -95,6 +119,14 @@ def get_jobs(titles: list, location: str) -> list:
 
 
 def store_jobs(all_jobs: list) -> list:
+    """Stores jobs in a list of Company objects
+
+    Args:
+        all_jobs (list): list of jobs in a dictionary format
+
+    Returns:
+        list: list of jobs in a Company object format
+    """
     all_companies: list = []
 
     for job in all_jobs:
@@ -116,6 +148,11 @@ def store_jobs(all_jobs: list) -> list:
 
 
 def get_companies(all_companies: list):
+    """Prints out all the companies and their roles
+
+    Args:
+        all_companies (list): list of jobs in a Company object format
+    """
     for company in all_companies:
         cprint.ok(f"Company: {company.name} has {len(company.info)} roles\n")
 

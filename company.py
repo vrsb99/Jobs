@@ -3,6 +3,9 @@ class Company:
         self.name = name
         self.info = info
 
+    def __eq__(self, other):
+        return self.name == other.name and self.info == other.info
+
     @property
     def info(self):
         return self._info

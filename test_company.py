@@ -1,5 +1,5 @@
 import pytest
-from src.company import Company
+from company import Company
 
 
 @pytest.mark.parametrize(
@@ -9,7 +9,7 @@ from src.company import Company
         ("Facebook", {"role": "Software Engineer", "link": "https://facebook.com"}),
     ],
 )
-def test_valid_company(name, info):
+def test_Company_valid(name, info):
     company = Company(name, info)
 
     assert company.name == name
@@ -23,7 +23,7 @@ def test_valid_company(name, info):
         ("Facebook", {"role": "Software Engineer"}),
     ],
 )
-def test_invalid_company(name, info):
+def test_Company_invalid(name, info):
 
     with pytest.raises(ValueError):
         Company(name, info)

@@ -1,5 +1,5 @@
 import pytest
-from src.inputs import jobs_to_get, job_titles_to_get, job_location_to_get
+from inputs import jobs_to_get, job_titles_to_get, job_location_to_get
 
 
 @pytest.mark.parametrize("num", [i for i in range(1, 10)])
