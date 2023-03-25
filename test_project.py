@@ -1,6 +1,5 @@
 import pytest
-from company import Company
-from project import store_jobs
+from project import store_jobs, Company, jobs_to_get, job_titles_to_get, job_location_to_get
 
 
 @pytest.mark.parametrize(

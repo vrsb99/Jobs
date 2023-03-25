@@ -4,11 +4,9 @@ import os
 
 from cprint import cprint
 from dotenv import load_dotenv
-from inputs import jobs_to_get, job_titles_to_get, job_location_to_get
-from company import Company
+from typing import List
 
 load_dotenv()
-DEBUG = True
 USE_API = False
 JOB_TITLES = [
     "Software Engineer Intern",
@@ -19,44 +17,36 @@ JOB_TITLES = [
 URL = "https://jsearch.p.rapidapi.com/search"
 RAPID_API_KEY = os.getenv("RAPID_API_KEY")
 PATH = "jobs.csv"
+COLUMNS = ["Employer", "Job Title", "Publisher", "Responsibilities", "Qualifications", "Max Salary", "Application Page", "Expiry Date"]
 
 
-def main():
+def main(titles: List[str] = JOB_TITLES, location: str = "Singapore"):
     """Change the value of DEBUG to True to use the default values for job titles and location
-    1. Get the number of jobs to get
-    2. Get the job titles to get
-    3. Get the location to get jobs from
-    4. Get the jobs from RapidAPI's JSearch API
-    5. Store the jobs in a csv file after removing duplicates and expired jobs
-    6. Store the jobs in a list of Company objects
-    8. Print the companies
+    1. Get the jobs from RapidAPI's JSearch API
+    2. Store the jobs in a csv file after removing duplicates and expired jobs
+    3. Store the jobs in a list of Company objects
+    4. Print the companies
     """
-    # 1, 2, 3
-    if not DEBUG:
-        num = jobs_to_get()
-        titles = job_titles_to_get(num)
-        location = job_location_to_get()
-    else:
-        titles = JOB_TITLES
-        location = "Singapore"
 
-    # 4
+    # 1
     data = get_jobs(titles, location) if USE_API else []
 
-    # 5
+    # 2
     df = pd.DataFrame(
         data,
-        columns=["Employer", "Job Title", "Publisher", "Apply Link", "Expiry Date"],
+        columns= COLUMNS
     )
 
     if os.path.exists(PATH):
         present_data = pd.read_csv(PATH)
-        present_data["Expiry Date"] = pd.to_datetime(present_data["Expiry Date"])
         df = (
             pd.concat([present_data, df])
             .drop_duplicates(["Employer", "Job Title"])
             .reset_index(drop=True)
         )
+        
+        df["Expiry Date"] = pd.to_datetime(df["Expiry Date"])
+        
         df = df[
             (df["Expiry Date"].dt.date > pd.Timestamp.now().date())
             & (~df["Expiry Date"].isnull())
@@ -64,10 +54,10 @@ def main():
 
     df.to_csv(PATH, index=False)
 
-    # 6
+    # 3
     all_companies = store_jobs(df.to_dict("records"))
-    # 7
-    get_companies(all_companies)
+    # 4
+    return all_companies
 
 
 def get_jobs(titles: list, location: str) -> list:
@@ -95,24 +85,27 @@ def get_jobs(titles: list, location: str) -> list:
             "date_posted": "week",
         }
         response = requests.request("GET", URL, headers=headers, params=querystring)
-
+        
         try:
             for job in response.json()["data"]:
                 data.append(
                     {
-                        "Employer": job["employer_name"],
-                        "Job Title": job["job_title"],
-                        "Publisher": job["job_publisher"],
-                        "Apply Link": job["job_apply_link"],
-                        "Expiry Date": job["job_offer_expiration_datetime_utc"].split(
+                        COLUMNS[0]: job["employer_name"],
+                        COLUMNS[1]: job["job_title"],
+                        COLUMNS[2]: job["job_publisher"],
+                        COLUMNS[3]: job["job_highlights"]["Responsibilities"] if job["job_highlights"].get("Responsibilities") else "Not Listed",
+                        COLUMNS[4]: job["job_highlights"]["Qualifications"] if job["job_highlights"].get("Qualifications") else "Not Listed",
+                        COLUMNS[5]: job["job_max_salary"] if job["job_max_salary"] else "Not Listed",
+                        COLUMNS[6]: job["job_apply_link"],
+                        COLUMNS[7]: job["job_offer_expiration_datetime_utc"].split(
                             "T"
                         )[0]
                         if job["job_offer_expiration_datetime_utc"]
                         else None,
                     }
                 )
-        except KeyError:
-            cprint.err("API Limit Reached")
+        except KeyError as e:
+            cprint.err("error", e)
             break
 
     return data
@@ -128,37 +121,49 @@ def store_jobs(all_jobs: list) -> list:
         list: list of jobs in a Company object format
     """
     all_companies: list = []
+    length = len(COLUMNS)
 
     for job in all_jobs:
 
-        if job["Employer"] in [c.name for c in all_companies]:
-            index = [c.name for c in all_companies].index(job["Employer"])
+        if job[COLUMNS[0]] in [c.name for c in all_companies]:
+            index = [c.name for c in all_companies].index(job[COLUMNS[0]])
             all_companies[index].add_info(
-                {"role": job["Job Title"], "link": job["Apply Link"]}
+                {COLUMNS[i]: job[COLUMNS[i]] for i in range(1, length)}
             )
         else:
             all_companies.append(
                 Company(
-                    job["Employer"],
-                    {"role": job["Job Title"], "link": job["Apply Link"]},
+                    job[COLUMNS[0]],
+                    {COLUMNS[i]: job[COLUMNS[i]] for i in range(1, length)},
                 )
             )
 
     return all_companies
 
+class Company:
+    def __init__(self, name: str, info: dict):
+        self.name = name
+        self.info = info
 
-def get_companies(all_companies: list):
-    """Prints out all the companies and their roles
+    def __eq__(self, other):
+        return self.name == other.name and self.info == other.info
 
-    Args:
-        all_companies (list): list of jobs in a Company object format
-    """
-    for company in all_companies:
-        cprint.ok(f"Company: {company.name} has {len(company.info)} roles\n")
+    @property
+    def info(self):
+        return self._info
 
-        for role in company.info:
-            cprint.info(f"Role: {role['role']}\nLink: {role['link']}\n")
+    @info.setter
+    def info(self, info: dict):
+        if all(key in info for key in COLUMNS[1:]):
+            self._info = [info]
+        else:
+            raise ValueError("Invalid info. Check Code")
 
+    def add_info(self, info):
+        if all(key in info for key in COLUMNS[1:]):
+            self._info.append(info)
+        else:
+            raise ValueError("Invalid info. Check Code")
 
 if __name__ == "__main__":
     main()
