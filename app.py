@@ -1,12 +1,10 @@
 import streamlit as st
 import requests
 
-from cprint import cprint
-from streamlit_lottie import st_lottie
-from project import main as project_main, Company, COLUMNS
+from search_and_store import main as project_main
 
 # CONFIG
-st.set_page_config(page_title="Job Search", page_icon=":briefcase:", layout="wide")
+st.set_page_config(page_title="Job Search", page_icon=":briefcase:")
 
 def load_lottieurl(url):
     r = requests.get(url)
@@ -24,21 +22,24 @@ def hide_anchor_link():
 def fill_fields():
     st.warning("Please fill in all the fields")
     
-def show_results(all_companies: list):
-    length = len(COLUMNS)
+def show_results(all_companies: dict):
     with st.container():
-        st.header("Companies:")
-        for company in all_companies:
-            st.subheader(f"{company.name} has {len(company.info)} roles\n")
+        st.markdown("Use this website as a tool to find jobs grouped by company. But it is recommended to apply for jobs on the company's website.")
+        st.markdown("## Companies:")
+        
+        for company_name, roles in all_companies.items():
+            length = len(roles)
+            st.markdown(f"### {company_name} has {length} roles\n")
             
-            for idx, role in enumerate(company.info):
-                st.markdown(f"{idx+1}. {role[COLUMNS[1]]}")
+            for idx, role in enumerate(roles):
+                st.markdown(f"{idx+1}. Job Title: {role['Job Title']}")
                 
-                for i in range (2, length-2):
-                    
-                    if role[COLUMNS[i]] != "Not Listed": st.markdown(f"{'&nbsp;'*8} {COLUMNS[i]}: {role[COLUMNS[i]]}") 
-                    
-                st.markdown(f"{'&nbsp;'*8} {COLUMNS[6]}: [Link]({role[COLUMNS[6]]})")
+                for key, value in role.items():
+                    if key not in ["Job Title", "Application Page"] and value is not None and value != "Not Listed":
+                        st.markdown(f"{'&nbsp;'*8} {key}: {value}")
+
+                st.markdown(f"{'&nbsp;'*8} Application Page: [Link]({role['Application Page']})")
+
 
 # LOADING ASSETS
 lottie_url = "https://assets9.lottiefiles.com/packages/lf20_nk9kshb0.json"
@@ -50,7 +51,7 @@ with st.container():
         
 with st.container():
     st.info("Search for jobs in your area which are grouped by company")
-    no_of_jobs = st.selectbox("Select the number of jobs you to search for: ", options=[1, 2, 3, 4])
+    no_of_jobs = st.selectbox("Select the number of jobs you want to search for: ", options=[1, 2, 3, 4])
     
 with st.form("job_search"):
     
