@@ -114,30 +114,24 @@ def ensure_table_exists(_connection: psycopg2.extensions.connection) -> None:
     cursor = _connection.cursor()
     cursor.execute(
         """
-    CREATE TABLE IF NOT EXISTS jobs (
-        job_id SERIAL PRIMARY KEY,
-        employer TEXT,
-        job_title TEXT,
-        job_publisher TEXT,
-        responsibilities TEXT,
-        qualifications TEXT,
-        max_salary TEXT,
-        apply_link TEXT,
-        expiry_date DATE,
-        CONSTRAINT unique_job UNIQUE (employer, job_title)
-    );
-    """
-    )
-    cursor.execute(
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id SERIAL PRIMARY KEY,
+            employer TEXT,
+            job_title TEXT,
+            job_publisher TEXT,
+            responsibilities TEXT,
+            qualifications TEXT,
+            max_salary TEXT,
+            apply_link TEXT,
+            expiry_date DATE,
+            title_searched TEXT[],
+            CONSTRAINT unique_job UNIQUE (employer, job_title)
+        );
         """
-    CREATE TABLE IF NOT EXISTS job_titles (
-        job_id INT REFERENCES jobs(job_id),
-        title_searched TEXT
-    );
-    """
     )
-    connection.commit()
+    _connection.commit()
     cursor.close()
+
 
 @st.cache_resource()
 def store_database_jobs(
@@ -146,15 +140,8 @@ def store_database_jobs(
     cursor = _connection.cursor()
 
     # Delete expired jobs
-    cursor.execute("""
-    DELETE FROM job_titles 
-    WHERE job_id IN (
-        SELECT job_id FROM jobs WHERE expiry_date < NOW()
-    );
-    """)
-    connection.commit()
     cursor.execute("DELETE FROM jobs WHERE expiry_date < NOW()")
-    connection.commit()
+    _connection.commit()
     
     # Insert new jobs without duplicates and manage titles
     for job in data:
@@ -162,27 +149,18 @@ def store_database_jobs(
 
         cursor.execute(
             """
-        INSERT INTO jobs (employer, job_title, job_publisher, responsibilities, qualifications, max_salary, apply_link, expiry_date)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT ON CONSTRAINT unique_job
-        DO UPDATE SET job_id=jobs.job_id
-        RETURNING job_id;
-        """,
-            tuple(job.values()),
+            INSERT INTO jobs (employer, job_title, job_publisher, responsibilities, qualifications, max_salary, apply_link, expiry_date, title_searched)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, ARRAY[%s])
+            ON CONFLICT ON CONSTRAINT unique_job
+            DO UPDATE SET title_searched = array_append(jobs.title_searched, EXCLUDED.title_searched[1])
+            RETURNING job_id;
+            """,
+            tuple(job.values()) + (title_searched,),
         )
 
-        job_id = cursor.fetchone()[0]
-
-        cursor.execute(
-            """
-        INSERT INTO job_titles (job_id, title_searched)
-        VALUES (%s, %s)
-        ON CONFLICT DO NOTHING;
-        """,
-            (job_id, title_searched),
-        )
-    connection.commit()
+    _connection.commit()
     cursor.close()
+
 
 @st.cache_data()
 def get_database_jobs(
@@ -191,10 +169,11 @@ def get_database_jobs(
     cursor = _connection.cursor()
     cursor.execute(
         """
-    SELECT jobs.employer, jobs.job_title, jobs.job_publisher, jobs.responsibilities, jobs.qualifications, jobs.max_salary, jobs.apply_link, jobs.expiry_date FROM jobs
-    INNER JOIN job_titles ON jobs.job_id = job_titles.job_id 
-    WHERE job_titles.title_searched = ANY(%s);
-    """,
+        SELECT DISTINCT ON (employer, job_title) employer, job_title, job_publisher, responsibilities, qualifications, max_salary, apply_link, expiry_date
+        FROM jobs
+        WHERE title_searched && %s
+        ORDER BY employer, job_title, expiry_date DESC;
+        """,
         (titles,),
     )
     database_jobs = cursor.fetchall()
